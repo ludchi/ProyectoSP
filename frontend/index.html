@@ -1,0 +1,111 @@
+<!--
+OBJETIVO: Gestión de Firebase y Dashboard de usuario.
+INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA ANGEL JOSUE
+PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AsistLab Dashboard</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="logo">
+                <i class="fa-solid fa-microchip"></i>
+                <h1>AsistLab <span>Control Center</span></h1>
+            </div>
+            <div class="status-indicator">
+                <span class="pulse-dot" id="system-status-dot"></span>
+                <span id="system-status-text">Conectando...</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-grid">
+            
+            <!-- Últimas Lecturas de Sensores -->
+            <section class="card sensor-panel">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-tower-broadcast"></i> Sensores en Tiempo Real</h2>
+                </div>
+                <div class="card-content sensor-grid">
+                    <div class="sensor-card">
+                        <i class="fa-solid fa-id-badge sensor-icon blue"></i>
+                        <div class="sensor-info">
+                            <span class="sensor-label">Último RFID</span>
+                            <span class="sensor-value" id="val-rfid">---</span>
+                        </div>
+                    </div>
+                    <div class="sensor-card">
+                        <i class="fa-solid fa-ruler-combined sensor-icon purple"></i>
+                        <div class="sensor-info">
+                            <span class="sensor-label">Distancia (cm)</span>
+                            <span class="sensor-value" id="val-distancia">0</span>
+                        </div>
+                    </div>
+                    <div class="sensor-card">
+                        <i class="fa-solid fa-heart-pulse sensor-icon red"></i>
+                        <div class="sensor-info">
+                            <span class="sensor-label">Pulso (BPM)</span>
+                            <span class="sensor-value" id="val-pulso">0</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Control Remoto -->
+            <section class="card control-panel">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-gamepad"></i> Control Remoto</h2>
+                </div>
+                <div class="card-content controls-wrapper">
+                    <div class="control-item">
+                        <div class="control-info">
+                            <h3>Solenoide (Puerta)</h3>
+                            <p>Abrir acceso temporalmente</p>
+                        </div>
+                        <button class="btn btn-primary" id="btn-abrir-puerta">
+                            <i class="fa-solid fa-door-open"></i> Abrir
+                        </button>
+                    </div>
+                    
+                    <div class="control-item">
+                        <div class="control-info">
+                            <h3>Buzzer de Alerta</h3>
+                            <p>Emitir sonido de advertencia</p>
+                        </div>
+                        <button class="btn btn-danger" id="btn-activar-buzzer">
+                            <i class="fa-solid fa-bell"></i> Activar
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Historial de Alertas -->
+            <section class="card alerts-panel">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-triangle-exclamation"></i> Últimas 5 Alertas</h2>
+                </div>
+                <div class="card-content">
+                    <ul class="alerts-list" id="alerts-list">
+                        <!-- Las alertas se inyectarán aquí -->
+                        <li class="alert-empty">Cargando alertas...</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Firebase SDK (Modular v10) -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
