@@ -7,14 +7,15 @@ PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getFirestore, collection, doc, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-// TODO: Reemplaza esta configuración con la de tu proyecto de Firebase
+// Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSy_PLACEHOLDER_API_KEY",
-    authDomain: "tu-proyecto.firebaseapp.com",
-    projectId: "tu-proyecto",
-    storageBucket: "tu-proyecto.appspot.com",
-    messagingSenderId: "1234567890",
-    appId: "1:1234567890:web:abcdef123456"
+  apiKey: "AIzaSyB46ZDJBJjSCHolBhS8U4LdXpmm11dJG6s",
+  authDomain: "sadl-a3713.firebaseapp.com",
+  projectId: "sadl-a3713",
+  storageBucket: "sadl-a3713.firebasestorage.app",
+  messagingSenderId: "761607923575",
+  appId: "1:761607923575:web:f2da8247b1f49d07a1a372",
+  measurementId: "G-LX5M1W2G8Y"
 };
 
 // Elementos del DOM
@@ -81,7 +82,7 @@ function initListeners() {
             const alert = docSnap.data();
             const date = alert.timestamp ? alert.timestamp.toDate() : new Date();
             const timeStr = date.toLocaleTimeString();
-            
+
             const li = document.createElement('li');
             li.className = `alert-item ${alert.nivel || 'info'}`;
             li.innerHTML = `
@@ -101,7 +102,7 @@ function initListeners() {
 // 3. Enviar comandos remotos
 async function sendCommand(actuador, accion) {
     if (!db) return alert("Firebase no está conectado.");
-    
+
     try {
         await addDoc(collection(db, 'comandos_remotos'), {
             actuador: actuador,
@@ -119,7 +120,7 @@ async function sendCommand(actuador, accion) {
 btnAbrirPuerta.addEventListener('click', () => {
     btnAbrirPuerta.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Abriendo...';
     btnAbrirPuerta.disabled = true;
-    
+
     sendCommand('solenoide', 'abrir').finally(() => {
         setTimeout(() => {
             btnAbrirPuerta.innerHTML = '<i class="fa-solid fa-door-open"></i> Abrir';
@@ -131,7 +132,7 @@ btnAbrirPuerta.addEventListener('click', () => {
 btnActivarBuzzer.addEventListener('click', () => {
     btnActivarBuzzer.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Activando...';
     btnActivarBuzzer.disabled = true;
-    
+
     sendCommand('buzzer', 'ok').finally(() => {
         setTimeout(() => {
             btnActivarBuzzer.innerHTML = '<i class="fa-solid fa-bell"></i> Activar';

@@ -4,12 +4,18 @@ INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA AN
 PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 """
 
+# pyrefly: ignore [missing-import]
 import firebase_admin
+# pyrefly: ignore [missing-import]
 from firebase_admin import credentials
+# pyrefly: ignore [missing-import]
 from firebase_admin import firestore
 import datetime
 import threading
 import os
+
+# Variable global para mantener vivo el listener de Firebase
+cmd_watch = None
 
 # Placeholder for credentials, ideally this should be set via env var or actual file
 CREDENTIALS_PATH = "serviceAccountKey.json"
@@ -70,6 +76,7 @@ def _start_command_listener():
         
     try:
         # Escuchamos los comandos remotos pendientes usando FieldFilter (sintaxis nueva)
+        # pyrefly: ignore [missing-import]
         from google.cloud.firestore_v1.base_query import FieldFilter
         col_query = db.collection('comandos_remotos').where(filter=FieldFilter('procesado', '==', False))
         

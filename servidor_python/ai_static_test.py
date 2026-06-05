@@ -6,6 +6,7 @@ PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 
 import os
 import urllib.request
+# pyrefly: ignore [missing-import]
 import cv2
 from ai_processor import FatigueDetector
 
