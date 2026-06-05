@@ -21,7 +21,9 @@ Esta guía detalla las conexiones físicas, los archivos que necesitas cargar a 
 | | RST | `GPIO 4` | |
 | **Ultrasonido HC-SR04** | TRIG | `GPIO 13` | |
 | | ECHO | `GPIO 12` | **¡Precaución!** Usar divisor de voltaje. |
-| **Actuadores** | IN (Relé Solenoide)| `GPIO 26` | El relé manejará los 12V del solenoide. |
+| **Actuadores** | IN (Módulo Relé)| `GPIO 26` | Señal de la ESP32 para activar el solenoide. |
+| | Bornera COM (Módulo Relé)| `Positivo 12V`| Conectar al cable positivo de tu fuente de 12V separada. |
+| | Bornera NO (Módulo Relé) | `Solenoide (+)`| Conectar a un cable del solenoide. El otro cable del solenoide va al GND (Negativo) de los 12V. |
 | | Señal Buzzer | `GPIO 27` | |
 
 ---
