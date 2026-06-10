@@ -2,31 +2,46 @@
 
 Esta guía detalla las conexiones físicas, los archivos que necesitas cargar a la ESP32 y la configuración de la red MQTT para que el prototipo pase de "simulación en PC" a **Hardware Real**.
 
-## 1. Tabla de Conexiones (Pinout Sugerido para ESP32)
+## 1. Tabla de Conexiones a detalle (Estilo Diagrama/Proteus)
 
-> [!WARNING]
-> Recuerda que el sensor HC-SR04 suele funcionar a 5V y su pin ECHO enviará 5V a la ESP32 (que soporta máximo 3.3V). Utiliza un divisor de voltaje (resistencias) en el pin ECHO para no dañar tu ESP32.
+Esta tabla describe la conexión **cable por cable** y especifica exactamente dónde necesitas agregar componentes electrónicos pasivos (resistencias, diodos) para proteger la ESP32 y asegurar la estabilidad, tal cual lo armarías en un esquemático de Proteus.
 
-| Módulo | Pin del Módulo | Pin ESP32 | Notas |
-|---|---|---|---|
-| **Alimentación** | GND | `GND` | Une todos los GND de todos los módulos. |
-| | VCC (5V) | `VIN` / `5V` | HC-SR04 y Módulo Relé (para solenoide). |
-| | VCC (3.3V) | `3V3` | RC522, OLED, MAX30102. |
-| **Bus I2C (Compartido)** | SDA | `GPIO 21` | Conectar aquí SDA del OLED y del MAX30102. |
-| | SCL | `GPIO 22` | Conectar aquí SCL del OLED y del MAX30102. |
-| **RFID RC522 (Bus SPI)** | SDA / SS | `GPIO 5` | |
-| | SCK | `GPIO 18` | |
-| | MOSI | `GPIO 23` | |
-| | MISO | `GPIO 19` | |
-| | RST | `GPIO 4` | |
-| **Ultrasonido HC-SR04** | TRIG | `GPIO 13` | |
-| | ECHO | `GPIO 12` | **¡Precaución!** Usar divisor de voltaje. |
-| **Actuadores** | Módulo Relé: VCC / DC+ | `VIN` o `5V` | Alimentación de 5V para el módulo relé. NO usar 3V3. |
-| | Módulo Relé: GND / DC- | `GND` | Tierra (GND) de la ESP32. |
-| | Módulo Relé: IN / Señal | `GPIO 26` | Señal de la ESP32 para activar el solenoide. |
-| | Módulo Relé: Bornera COM | `Positivo 12V`| Conectar al cable positivo de tu fuente de 12V separada. |
-| | Módulo Relé: Bornera NO | `Solenoide (+)`| Conectar a un cable del solenoide. El otro cable del solenoide va al GND (Negativo) de los 12V. |
-| | Señal Buzzer | `GPIO 27` | |
+> [!CAUTION]
+> **TIERRAS COMUNES:** Asegúrate de que todos los pines GND de todos los módulos y la ESP32 estén interconectados. (Excepto el circuito del solenoide si usas un relé optoacoplado para aislar, pero por simplicidad, los GND del relé van al ESP32 y el de la carga va a su fuente).
+
+| Componente Módulo | Pin del Componente | Conexión / Destino | Componente Extra Requerido (Protección) | Explicación del circuito |
+|---|---|---|---|---|
+| **Alimentación ESP32** | VIN / 5V | N/A | Ninguno | Entrada de 5V (desde el USB o fuente externa regulada). |
+| | GND | Bus GND Común | Ninguno | Nodo principal de tierra de todo el sistema. |
+| | 3V3 | Bus 3.3V | Ninguno | Pin de salida de la ESP32 que proveerá energía a módulos lógicos. |
+| **OLED SSD1306** | VCC | Bus 3.3V (Pin `3V3`) | Ninguno | Alimentación lógica. |
+| | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
+| | SDA | ESP32 `GPIO 21` | Pull-ups 4.7kΩ (Opcional)* | Conexión directa. *(La mayoría de módulos OLED ya integran resistencias pull-up SMD a 3.3V. Solo agrega unas externas a 3.3V si el I2C falla).* |
+| | SCL | ESP32 `GPIO 22` | Pull-ups 4.7kΩ (Opcional)* | Conexión directa. |
+| **MAX30102 (Pulso)**| VIN / VCC | Bus 3.3V (Pin `3V3`) | Ninguno | Alimentación 3.3V (Usar 3.3V evita desajustes de nivel lógico I2C). |
+| | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
+| | SDA | ESP32 `GPIO 21` | Ninguno (Directo) | Va en el mismo bus I2C en paralelo al OLED. |
+| | SCL | ESP32 `GPIO 22` | Ninguno (Directo) | Va en el mismo bus I2C en paralelo al OLED. |
+| **RC522 (RFID)** | 3.3V | Bus 3.3V (Pin `3V3`) | Ninguno | **¡Estricto!** Conectar a 5V quema este lector. |
+| | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
+| | SDA (SS/CS) | ESP32 `GPIO 5` | Ninguno | Cable directo (Chip Select SPI). |
+| | SCK | ESP32 `GPIO 18` | Ninguno | Cable directo (Reloj SPI). |
+| | MOSI | ESP32 `GPIO 23` | Ninguno | Cable directo (Master Out Slave In). |
+| | MISO | ESP32 `GPIO 19` | Ninguno | Cable directo (Master In Slave Out). |
+| | RST | ESP32 `GPIO 4` | Ninguno | Cable directo (Reset lógico). |
+| **HC-SR04 (Ultra)** | VCC | Bus 5V (Pin `VIN`) | Ninguno | Este sensor requiere 5V para un buen alcance acústico. |
+| | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
+| | TRIG | ESP32 `GPIO 13` | Ninguno | Cable directo. El pulso 3.3V de la ESP32 basta para disparar el sensor. |
+| | ECHO | ESP32 `GPIO 12` | **¡SÍ! Divisor de Tensión:**<br>• Resistor 1kΩ (Serie de ECHO a GPIO 12)<br>• Resistor 2kΩ (Derivación de GPIO 12 a GND) | **¡CRÍTICO!** El sensor envía un pulso de retorno de **5V**. El divisor baja el voltaje a ~3.3V para evitar quemar el pin GPIO 12. |
+| **Módulo Relé (5V)** | VCC / DC+ | Bus 5V (Pin `VIN`) | Ninguno | Alimentación de la bobina electromagnética. |
+| | GND / DC- | Bus GND Común | Ninguno | Cierra circuito lógico. |
+| | IN / Señal | ESP32 `GPIO 26` | Ninguno | Cable directo. La señal 3.3V de la ESP32 activará el optoacoplador del relé. |
+| | Bornera COM | Positivo 12V (Ext.) | **Fuente Externa 12V** | Usar una fuente independiente (ej. cargador 12V 2A). |
+| | Bornera NO | Cable Solenoide (+) | Ninguno | Salida normalmente abierta hacia el solenoide. |
+| **Solenoide 12V** | Cable 1 (Fase) | Relé (Bornera NO) | **Diodo Flyback (1N4007)** | Conectar el diodo **en paralelo** a los dos cables del solenoide, con la banda gris (cátodo) hacia el positivo. Evita reinicios por picos de la bobina. |
+| | Cable 2 (Tierra) | Negativo 12V (Ext.) | Ninguno | Regreso de corriente hacia la fuente de 12V externa. |
+| **Buzzer Activo** | VCC (+) / Pata larga| ESP32 `GPIO 27` | **Resistor 220Ω - 330Ω** | Conectar en serie el resistor entre el GPIO 27 y la pata positiva del buzzer para limitar la corriente (~10mA). |
+| | GND (-) / Pata corta| Bus GND Común | Ninguno | Cierra circuito a tierra. |
 
 ---
 

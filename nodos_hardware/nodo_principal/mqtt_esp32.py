@@ -21,7 +21,7 @@ class DummyMQTTClient:
     def check_msg(self): pass
     def disconnect(self): print("Desconectado")
 
-BROKER = "192.168.0.100"
+BROKER = "192.168.202.22"
 CLIENT_ID = "esp32_01"
 TOPIC_BASE = "asistlab"
 
