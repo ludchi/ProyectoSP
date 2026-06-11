@@ -8,20 +8,13 @@ import time
 import json
 from dispositivos import CajaSensores, CajaActuadores
 
-# Simulación de umqtt.simple para entorno de PC (reemplazar con import umqtt.simple en la ESP32)
-class DummyMQTTClient:
-    def __init__(self, client_id, broker):
-        self.client_id = client_id
-        self.broker = broker
-        self.cb = None
-    def set_callback(self, f): self.cb = f
-    def connect(self): print("Conectado a", self.broker)
-    def subscribe(self, topic): print("Suscrito a", topic)
-    def publish(self, topic, msg): pass
-    def check_msg(self): pass
-    def disconnect(self): print("Desconectado")
+try:
+    from umqttsimple import MQTTClient
+except ImportError:
+    print("ERROR: Falta el archivo umqttsimple.py en la ESP32")
 
-BROKER = "192.168.202.22"
+
+BROKER = "192.168.1.168"
 CLIENT_ID = "esp32_01"
 TOPIC_BASE = "asistlab"
 
@@ -59,7 +52,7 @@ def on_message(topic, msg):
 
 def main():
     print("=== SISTEMA ASISTENCIAS Y DESGASTE LABORAL (ESP32 MQTT) ===")
-    client = DummyMQTTClient(CLIENT_ID, BROKER)
+    client = MQTTClient(CLIENT_ID, BROKER)
     client.set_callback(on_message)
     client.connect()
     
