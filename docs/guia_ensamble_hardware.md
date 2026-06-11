@@ -42,6 +42,8 @@ Esta tabla describe la conexión **cable por cable** y especifica exactamente d�
 | | Cable 2 (Tierra) | Negativo 12V (Ext.) | Ninguno | Regreso de corriente hacia la fuente de 12V externa. |
 | **Buzzer Activo** | VCC (+) / Pata larga| ESP32 `GPIO 27` | **Resistor 220Ω - 330Ω** | Conectar en serie el resistor entre el GPIO 27 y la pata positiva del buzzer para limitar la corriente (~10mA). |
 | | GND (-) / Pata corta| Bus GND Común | Ninguno | Cierra circuito a tierra. |
+| **ESP32-CAM (Cámara)** | 5V / VCC | Bus 5V (Pin `VIN` o Fuente 5V Ext.) | **Fuente de al menos 1A-2A** | Módulo independiente (no se conecta a los GPIO de la ESP32 principal). Requiere muy buena alimentación de 5V para que el Wi-Fi y la cámara no se reinicien. |
+| | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
 
 ---
 
