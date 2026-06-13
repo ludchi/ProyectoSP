@@ -18,7 +18,7 @@ Esta tabla describe la conexión **cable por cable** y especifica exactamente d�
 | | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
 | | SDA | ESP32 `GPIO 21` | Pull-ups 4.7kΩ (Opcional)* | Conexión directa. *(La mayoría de módulos OLED ya integran resistencias pull-up SMD a 3.3V. Solo agrega unas externas a 3.3V si el I2C falla).* |
 | | SCL | ESP32 `GPIO 22` | Pull-ups 4.7kΩ (Opcional)* | Conexión directa. |
-| **MAX30102 (Pulso)**| VIN / VCC | Bus 3.3V (Pin `3V3`) | Ninguno | Alimentación 3.3V (Usar 3.3V evita desajustes de nivel lógico I2C). |
+| **MAX30100 (Pulso)**| VIN / VCC | Bus 3.3V (Pin `3V3`) | Ninguno | Alimentación 3.3V (Usar 3.3V evita desajustes de nivel lógico I2C). |
 | | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
 | | SDA | ESP32 `GPIO 21` | Ninguno (Directo) | Va en el mismo bus I2C en paralelo al OLED. |
 | | SCL | ESP32 `GPIO 22` | Ninguno (Directo) | Va en el mismo bus I2C en paralelo al OLED. |
@@ -58,7 +58,7 @@ Una vez que tengas MicroPython, debes guardar **obligatoriamente** los siguiente
    - `umqttsimple.py`: Para la conexión MQTT.
    - `ssd1306.py`: Para controlar la pantalla OLED.
    - `mfrc522.py`: Para leer las tarjetas RFID.
-   - `max30102.py`: Para leer el pulso cardíaco.
+   - `max30100.py`: Para leer el pulso cardíaco.
    - `hcsr04.py`: Para el ultrasonido.
 3. **`main.py`**: Este será tu archivo principal. Debe contener la lógica real de tu `mqtt_esp32.py`, pero importando y usando las librerías mencionadas arriba en lugar de las clases "Dummy" y falsas.
 

@@ -27,10 +27,10 @@ except ImportError:
     HAS_RFID = False
 
 try:
-    from max30102 import MAX30102
-    HAS_MAX30102 = True
+    from max30100 import MAX30100
+    HAS_MAX30100 = True
 except ImportError:
-    HAS_MAX30102 = False
+    HAS_MAX30100 = False
 
 
 class CajaSensores:
@@ -46,26 +46,35 @@ class CajaSensores:
             self.sensor_distancia = None
             print("[ADVERTENCIA] No se encontró hcsr04.py, usando simulación para ultrasonido.")
             
-        # --- Configuración I2C (Compartido OLED y MAX30102) ---
-        # Instanciamos aquí para el MAX30102.
+        # --- Configuración I2C (Compartido OLED y MAX30100) ---
+        # Instanciamos aquí para el MAX30100.
         self.i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=400000)
         
-        # --- Configuración MAX30102 ---
-        if HAS_MAX30102:
+        # --- Configuración MAX30100 ---
+        if HAS_MAX30100:
             try:
-                self.sensor_pulso = MAX30102(self.i2c)
+                self.sensor_pulso = MAX30100(self.i2c)
                 self.sensor_pulso.setup_sensor()
             except Exception as e:
-                print(f"[ERROR] Falló inicialización MAX30102: {e}")
+                print(f"[ERROR] Falló inicialización MAX30100: {e}")
                 self.sensor_pulso = None
         else:
             self.sensor_pulso = None
-            print("[ADVERTENCIA] No se encontró max30102.py, usando simulación para pulso.")
+            print("[ADVERTENCIA] No se encontró max30100.py, usando simulación para pulso.")
 
         # --- Configuración SPI y RC522 ---
         if HAS_RFID:
-            self.spi = SPI(2, baudrate=100000, polarity=0, phase=0, sck=Pin(18), mosi=Pin(23), miso=Pin(19))
-            self.lector_rfid = MFRC522(spi=self.spi, gpioRst=4, gpioCs=5)
+            try:
+                self.pin_rst = Pin(4, Pin.OUT)
+                self.pin_rst.value(1) # Despertar al módulo
+                self.spi = SPI(2, baudrate=2500000, polarity=0, phase=0, sck=Pin(18), mosi=Pin(23), miso=Pin(19))
+                
+                # Instanciación con 2 argumentos (SPI, CS)
+                self.lector_rfid = MFRC522(self.spi, Pin(5))
+                self.lector_rfid.init() # Encender antena según la librería del usuario
+            except Exception as e:
+                print(f"[ERROR] Falló inicialización RC522: {e}")
+                self.lector_rfid = None
         else:
             self.lector_rfid = None
             print("[ADVERTENCIA] No se encontró mfrc522.py, usando simulación para RFID.")
@@ -73,12 +82,15 @@ class CajaSensores:
 
     def leer_rfid(self):
         if self.lector_rfid:
-            (stat, tag_type) = self.lector_rfid.request(self.lector_rfid.REQIDL)
-            if stat == self.lector_rfid.OK:
-                (stat, uid) = self.lector_rfid.SelectTagSN()
+            try:
+                (stat, tag_type) = self.lector_rfid.request(self.lector_rfid.REQIDL)
                 if stat == self.lector_rfid.OK:
-                    self.uid_actual = "-".join([hex(i)[2:].upper() for i in uid])
-                    return self.uid_actual
+                    (stat, raw_uid) = self.lector_rfid.anticoll()
+                    if stat == self.lector_rfid.OK:
+                        self.uid_actual = "-".join([hex(i)[2:].upper() for i in raw_uid])
+                        return self.uid_actual
+            except Exception:
+                pass
             self.uid_actual = ""
             return self.uid_actual
         else:
