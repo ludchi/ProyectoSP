@@ -18,17 +18,17 @@ Esta tabla describe la conexión **cable por cable** y especifica exactamente d�
 | | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
 | | SDA | ESP32 `GPIO 21` | Pull-ups 4.7kΩ (Opcional)* | Conexión directa. *(La mayoría de módulos OLED ya integran resistencias pull-up SMD a 3.3V. Solo agrega unas externas a 3.3V si el I2C falla).* |
 | | SCL | ESP32 `GPIO 22` | Pull-ups 4.7kΩ (Opcional)* | Conexión directa. |
-| **MAX30102 (Pulso)**| VIN / VCC | Bus 3.3V (Pin `3V3`) | Ninguno | Alimentación 3.3V (Usar 3.3V evita desajustes de nivel lógico I2C). |
+| **MAX30102 (Pulso)**| VIN / VCC | Bus 5V (Pin `VIN`) | Ninguno | **¡CRÍTICO!** Conectar a 5V (VIN). Si se conecta a 3.3V, el consumo de sus LEDs reiniciará el lector RFID. |
 | | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
 | | SDA | ESP32 `GPIO 21` | Ninguno (Directo) | Va en el mismo bus I2C en paralelo al OLED. |
 | | SCL | ESP32 `GPIO 22` | Ninguno (Directo) | Va en el mismo bus I2C en paralelo al OLED. |
 | **RC522 (RFID)** | 3.3V | Bus 3.3V (Pin `3V3`) | Ninguno | **¡Estricto!** Conectar a 5V quema este lector. |
 | | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
-| | SDA (SS/CS) | ESP32 `GPIO 5` | Ninguno | Cable directo (Chip Select SPI). |
+| | SDA (SS/CS) | ESP32 `GPIO 17` | Ninguno | Cable directo (Chip Select SPI). ¡Cuidado, no confundir con el SDA del I2C! |
 | | SCK | ESP32 `GPIO 18` | Ninguno | Cable directo (Reloj SPI). |
-| | MOSI | ESP32 `GPIO 23` | Ninguno | Cable directo (Master Out Slave In). |
-| | MISO | ESP32 `GPIO 19` | Ninguno | Cable directo (Master In Slave Out). |
-| | RST | ESP32 `GPIO 4` | Ninguno | Cable directo (Reset lógico). |
+| | MOSI | ESP32 `GPIO 19` | Ninguno | Cable directo (Master Out Slave In). |
+| | MISO | ESP32 `GPIO 16` | Ninguno | Cable directo (Master In Slave Out). |
+| | RST | Bus 3.3V (Pin `3V3`) | Ninguno | Cable directo a 3.3V. Ya no lo controlamos por código para mayor estabilidad. |
 | **HC-SR04 (Ultra)** | VCC | Bus 5V (Pin `VIN`) | Ninguno | Este sensor requiere 5V para un buen alcance acústico. |
 | | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
 | | TRIG | ESP32 `GPIO 13` | Ninguno | Cable directo. El pulso 3.3V de la ESP32 basta para disparar el sensor. |

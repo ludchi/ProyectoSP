@@ -131,6 +131,8 @@ class MFRC522:
 
 	def reset(self):
 		self._wreg(0x01, 0x0F)
+		import utime
+		utime.sleep_ms(50)  # TIEMPO OBLIGATORIO SEGÚN DATASHEET PARA QUE EL CHIP DESPIERTE
 
 	def antenna_on(self, on=True):
 

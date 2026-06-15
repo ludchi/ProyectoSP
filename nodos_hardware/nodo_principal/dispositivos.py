@@ -27,11 +27,71 @@ except ImportError:
     HAS_RFID = False
 
 try:
-    from max30102 import MAX30102, MAX30102_I2C_ADDR
+    from max30102 import MAX30102
     HAS_MAX30102 = True
 except ImportError:
     HAS_MAX30102 = False
 
+class DetectorPulso:
+    def __init__(self):
+        self.ir_buffer = []
+        self.last_bpm = 0
+        
+    def procesar_muestras(self, samples):
+        for red, ir in samples:
+            self.ir_buffer.append(ir)
+        # Mantener historial de 150 muestras (3 segundos a 50Hz)
+        if len(self.ir_buffer) > 150:
+            self.ir_buffer = self.ir_buffer[-150:]
+            
+    def limpiar(self):
+        self.ir_buffer = []
+        self.last_bpm = 0
+        
+    def calcular_bpm(self):
+        if len(self.ir_buffer) < 100:
+            return self.last_bpm # Necesitamos al menos 2 segundos de datos
+            
+        # Filtro de media móvil para suavizar ruido
+        smoothed = []
+        for i in range(1, len(self.ir_buffer)-1):
+            smoothed.append((self.ir_buffer[i-1] + self.ir_buffer[i] + self.ir_buffer[i+1]) / 3)
+            
+        min_val = min(smoothed)
+        max_val = max(smoothed)
+        
+        # Si la amplitud es muy pequeña, es ruido o el dedo está inmóvil
+        if max_val - min_val < 20:
+            return 0
+            
+        # Umbral dinámico (mitad de la amplitud de la onda)
+        threshold = min_val + (max_val - min_val) * 0.5
+        
+        peaks = []
+        min_dist = 8 # A 25Hz, 8 samples = 0.32s (aprox 187 BPM max)
+        last_peak_idx = -min_dist
+        
+        for i in range(1, len(smoothed) - 1):
+            if smoothed[i] > smoothed[i-1] and smoothed[i] > smoothed[i+1]:
+                if smoothed[i] > threshold:
+                    if i - last_peak_idx >= min_dist:
+                        peaks.append(i)
+                        last_peak_idx = i
+                        
+        if len(peaks) >= 2:
+            intervalos = []
+            for i in range(1, len(peaks)):
+                intervalos.append(peaks[i] - peaks[i-1])
+            avg_interval = sum(intervalos) / len(intervalos)
+            
+            # 25 Hz = 25 muestras por segundo en el FIFO
+            bpm = (25 / avg_interval) * 60
+            
+            # Limitar a rango humano
+            if 40 <= bpm <= 180:
+                self.last_bpm = int(bpm)
+                
+        return self.last_bpm
 
 class CajaSensores:
     def __init__(self):
@@ -47,14 +107,21 @@ class CajaSensores:
             print("[ADVERTENCIA] No se encontró hcsr04.py, ultrasonido desactivado.")
             
         # --- Configuración I2C (Compartido OLED y MAX30102) ---
-        # Instanciamos aquí para el MAX30102.
         self.i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=400000)
         
         # --- Configuración MAX30102 ---
         if HAS_MAX30102:
             try:
-                self.sensor_pulso = MAX30102(self.i2c)
-                self.sensor_pulso.setup_sensor()
+                dispositivos_i2c = self.i2c.scan()
+                print(f"[INFO] Dispositivos en bus I2C: {[hex(d) for d in dispositivos_i2c]}")
+                
+                if 0x57 not in dispositivos_i2c:
+                    print("[ALERTA] MAX30102 (0x57) NO encontrado en bus I2C.")
+                    self.sensor_pulso = None
+                else:
+                    self.detector_pulso = DetectorPulso()
+                    self.sensor_pulso = MAX30102(self.i2c)
+                    print("[INFO] MAX30102 inicializado correctamente.")
             except Exception as e:
                 print(f"[ERROR] Falló inicialización MAX30102: {e}")
                 self.sensor_pulso = None
@@ -62,25 +129,21 @@ class CajaSensores:
             self.sensor_pulso = None
             print("[ADVERTENCIA] No se encontró max30102.py, sensor de pulso desactivado.")
 
-        # --- Configuración SPI y RC522 ---
+        # --- Configuración SPI y RC522 (SEGUNDO, después de I2C) ---
         if HAS_RFID:
             try:
-                # Replicar EXACTAMENTE la configuración del código de prueba exitoso
                 sck_pin = Pin(18, Pin.OUT)
                 mosi_pin = Pin(19, Pin.OUT)
                 miso_pin = Pin(16, Pin.OUT)
                 sda_pin = Pin(17, Pin.OUT)
 
-                # En ESP32, SPI(0) está reservado para la memoria interna y tira error. 
-                # Raspberry Pi Pico usa SPI(0), pero ESP32 usa SPI(1) o SPI(2).
                 self.spi = SPI(2, baudrate=1000000, polarity=0, phase=0, sck=sck_pin, mosi=mosi_pin, miso=miso_pin)
                 self.lector_rfid = MFRC522(self.spi, sda_pin)
-                # NO llamar .init() de nuevo, el constructor ya lo hace
                 
                 version = self.lector_rfid._rreg(0x37)
-                print(f"[INFO] RFID RC522 inicializado por hardware (modo original). Versión: 0x{version:02x}")
+                print(f"[INFO] RFID RC522 inicializado. Versión: 0x{version:02x}")
                 if version == 0x00 or version == 0xff:
-                    print("[ALERTA CRÍTICA] Sigue sin haber conexión SPI (versión 0x00). ¡Revisa soldaduras, cables cruzados o cambia el módulo!")
+                    print("[ALERTA CRÍTICA] Sin conexión SPI (versión 0x00). Revisa cables.")
             except Exception as e:
                 print(f"[ERROR] Falló inicialización RC522: {e}")
                 self.lector_rfid = None
@@ -131,14 +194,29 @@ class CajaSensores:
     
     def leer_pulso_hrv(self):
         if self.sensor_pulso:
-            self.sensor_pulso.check()
-            if self.sensor_pulso.available():
-                red = self.sensor_pulso.pop_red_from_storage()
-                ir = self.sensor_pulso.pop_ir_from_storage()
-                if ir > 50000: # Umbral muy básico para detectar dedo
-                    # Simular datos médicos en base a la detección
-                    return {"pulso_bpm": 75, "hrv_ms": 40} 
-            return {"pulso_bpm": 0, "hrv_ms": 0}
+            try:
+                # Extraer TODAS las muestras acumuladas en lugar de solo 1
+                muestras = self.sensor_pulso.read_available_samples()
+                if not muestras:
+                    # Si no hay muestras nuevas, devolvemos el último estado conocido asumiendo que no hay dedo
+                    return {"pulso_bpm": 0, "hrv_ms": 0, "red": 0, "ir": 0}
+                
+                # Tomar la muestra más reciente para revisar el umbral de presencia de dedo
+                ultimo_red, ultimo_ir = muestras[-1]
+                
+                # Umbral de detección ajustado para LED a 7mA:
+                if 400 < ultimo_ir < 120000:
+                    # Hay dedo, agregamos las muestras al historial para análisis matemático
+                    self.detector_pulso.procesar_muestras(muestras)
+                    bpm_real = self.detector_pulso.calcular_bpm()
+                    return {"pulso_bpm": bpm_real, "hrv_ms": 0, "red": ultimo_red, "ir": ultimo_ir}
+                else:
+                    # No hay dedo o hay luz ambiental bloqueando. Limpiamos historial.
+                    self.detector_pulso.limpiar()
+                    return {"pulso_bpm": 0, "hrv_ms": 0, "red": ultimo_red, "ir": ultimo_ir}
+            except Exception as e:
+                # Retornamos el error en el JSON para verlo en el servidor
+                return {"pulso_bpm": 0, "hrv_ms": 0, "error_sensor": str(e)}
         else:
             return {"pulso_bpm": 0, "hrv_ms": 0}
     

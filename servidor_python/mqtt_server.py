@@ -80,6 +80,48 @@ def on_connect(client, userdata, flags, rc):
     else:
         print(f"❌ Error al conectar MQTT, código: {rc}")
 
+import time
+
+# Diccionario para evitar spam de asistencias (Debouncer)
+ultimos_registros = {}
+TIEMPO_ESPERA_SEGUNDOS = 60
+
+def procesar_asistencia(client, payload):
+    """
+    Extrae RFID y BPM del payload de resumen, y si ambos son válidos, 
+    gestiona el registro en la base de datos.
+    """
+    rfid_uid = payload.get("rfid_uid", "")
+    pulso_hrv = payload.get("pulso_hrv", {})
+    pulso_bpm = pulso_hrv.get("pulso_bpm", 0)
+    
+    if rfid_uid and pulso_bpm > 0:
+        # Revisar debouncer
+        tiempo_actual = time.time()
+        ultimo_tiempo = ultimos_registros.get(rfid_uid, 0)
+        
+        if (tiempo_actual - ultimo_tiempo) > TIEMPO_ESPERA_SEGUNDOS:
+            print(f"\n[ASISTENCIA] Procesando intento para UID: {rfid_uid} con {pulso_bpm} BPM...")
+            
+            # 1. Consultar base de datos
+            empleado = firebase_config.obtener_empleado(rfid_uid)
+            
+            if empleado:
+                # 2. Registrar asistencia
+                firebase_config.registrar_asistencia(rfid_uid, empleado, pulso_bpm)
+                # 3. Marcar tiempo para evitar spam
+                ultimos_registros[rfid_uid] = tiempo_actual
+                
+                # 4. Enviar comando de éxito al ESP32 (Buzzer)
+                client.publish(f"{TOPIC_BASE}/cmd/buzzer/esp32_01", json.dumps({"tipo": "exito"}))
+                print(f"[ASISTENCIA] Acceso concedido a {empleado.get('nombre')}")
+            else:
+                # Opcional: Tarjeta no registrada
+                print(f"[ASISTENCIA] ❌ Tarjeta no registrada: {rfid_uid}")
+                client.publish(f"{TOPIC_BASE}/cmd/buzzer/esp32_01", json.dumps({"tipo": "error"}))
+                # Evitar que haga spam de errores cada segundo
+                ultimos_registros[rfid_uid] = tiempo_actual + 10 
+
 def on_message(client, userdata, msg):
     topic = msg.topic
     payload = msg.payload.decode('utf-8')
@@ -87,7 +129,16 @@ def on_message(client, userdata, msg):
     if "camara" in topic:
         procesar_camara(client, payload)
     else:
+        # Guardamos en la colección de logs crudos
         log_telemetria(topic, payload)
+        
+        # Procesamos la lógica de negocio si es un resumen
+        if "resumen" in topic:
+            try:
+                data = json.loads(payload)
+                procesar_asistencia(client, data)
+            except Exception as e:
+                pass
 
 def main():
     global detector

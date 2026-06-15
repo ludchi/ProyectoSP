@@ -66,6 +66,53 @@ def log_evento(tipo, datos):
     except Exception as e:
         print(f"[FIREBASE] ERROR al registrar evento: {e}")
 
+def obtener_empleado(uid):
+    """
+    Busca un empleado en la colección 'empleados' mediante su UID de tarjeta RFID.
+    Retorna un diccionario con los datos del empleado si existe, o None si no.
+    """
+    if not db:
+        return {"nombre": "Simulado"} # Modo simulado
+    try:
+        doc_ref = db.collection('empleados').document(uid)
+        doc = doc_ref.get()
+        if doc.exists:
+            return doc.to_dict()
+        return None
+    except Exception as e:
+        print(f"[FIREBASE] ERROR al buscar empleado: {e}")
+        return None
+
+def registrar_asistencia(uid, empleado_data, bpm):
+    """
+    Guarda el registro de entrada/salida en la colección 'asistencias'.
+    Calcula si hay estrés laboral basado en los BPM.
+    """
+    if not db:
+        print(f"[FIREBASE-SIMULADO] Asistencia registrada para {empleado_data.get('nombre', 'Desconocido')} con {bpm} BPM.")
+        return
+
+    try:
+        # Lógica básica de estrés: Si BPM es mayor a 100 en reposo, o menor a 50
+        estado_estres = "NORMAL"
+        if bpm > 100 or bpm < 50:
+            estado_estres = "ALERTA_ESTRES"
+
+        registro = {
+            "uid": uid,
+            "nombre": empleado_data.get('nombre', 'Desconocido'),
+            "puesto": empleado_data.get('puesto', 'Sin Asignar'),
+            "timestamp": firestore.SERVER_TIMESTAMP,
+            "bpm_registrado": bpm,
+            "estado_estres": estado_estres
+        }
+        
+        db.collection('asistencias').add(registro)
+        print(f"[FIREBASE] ✅ Asistencia guardada: {registro['nombre']} ({bpm} BPM) -> {estado_estres}")
+        
+    except Exception as e:
+        print(f"[FIREBASE] ERROR al registrar asistencia: {e}")
+
 def _start_command_listener():
     """
     Escucha cambios en la colección de comandos enviados desde el Dashboard.
