@@ -34,9 +34,7 @@ def on_firebase_command(cmd_doc, client):
     dispositivo = cmd_doc.get('dispositivo', 'esp32_01')
     
     payload = {}
-    if actuador == 'solenoide':
-        payload = {"abrir": accion == "abrir", "tiempo_ms": 2000}
-    elif actuador == 'buzzer':
+    if actuador == 'buzzer':
         payload = {"tipo": accion}
     
     if actuador and payload:

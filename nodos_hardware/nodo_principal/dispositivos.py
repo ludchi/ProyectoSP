@@ -14,11 +14,7 @@ try:
 except ImportError:
     HAS_OLED = False
 
-try:
-    import hcsr04
-    HAS_HCSR04 = True
-except ImportError:
-    HAS_HCSR04 = False
+
 
 try:
     from mfrc522 import MFRC522
@@ -95,16 +91,8 @@ class DetectorPulso:
 
 class CajaSensores:
     def __init__(self):
-        self.lecturas_ultrasonido = []
         self.uid_actual = ""
         self.pulsos_historial = [72, 74, 70, 75]
-        
-        # --- Configuración HC-SR04 ---
-        if HAS_HCSR04:
-            self.sensor_distancia = hcsr04.HCSR04(trigger_pin=13, echo_pin=12, echo_timeout_us=10000)
-        else:
-            self.sensor_distancia = None
-            print("[ADVERTENCIA] No se encontró hcsr04.py, ultrasonido desactivado.")
             
         # --- Configuración I2C (Compartido OLED y MAX30102) ---
         self.i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=400000)
@@ -177,20 +165,7 @@ class CajaSensores:
             self.uid_actual = ""
             return self.uid_actual
     
-    def leer_ultrasonido_cm(self):
-        if self.sensor_distancia:
-            try:
-                dist = self.sensor_distancia.distance_cm()
-                if dist < 0 or dist > 400:
-                    dist = 400
-                self.lecturas_ultrasonido.append(dist)
-                if len(self.lecturas_ultrasonido) > 5:
-                    self.lecturas_ultrasonido.pop(0)
-                return sum(self.lecturas_ultrasonido) / len(self.lecturas_ultrasonido)
-            except Exception:
-                return 400
-        else:
-            return 0
+
     
     def leer_pulso_hrv(self):
         if self.sensor_pulso:
@@ -223,7 +198,6 @@ class CajaSensores:
     def obtener_resumen_sensores(self):
         return {
             "rfid_uid": self.leer_rfid(),
-            "distancia_cm": self.leer_ultrasonido_cm(),
             "pulso_hrv": self.leer_pulso_hrv()
         }
 
@@ -231,9 +205,7 @@ class CajaActuadores:
     def __init__(self):
         self.mensajes_pantalla = []
         
-        # --- Configuración Relé (Solenoide) ---
-        self.pin_solenoide = Pin(26, Pin.OUT)
-        self.pin_solenoide.value(0) # Cerrado por defecto
+
         
         # --- Configuración Buzzer ---
         self.pin_buzzer = PWM(Pin(27), freq=500, duty=0)
@@ -279,16 +251,9 @@ class CajaActuadores:
         
         print(f"[BUZZER] Tono {freq}Hz x {duracion_ms}ms")
     
-    def solenoide_abrir(self, abrir=True):
-        if abrir:
-            self.pin_solenoide.value(1)
-            print("[SOLENOIDE] ABIERTO")
-        else:
-            self.pin_solenoide.value(0)
-            print("[SOLENOIDE] CERRADO")
+
     
     def estado_seguro(self):
         print("[EMERGENCIA] ESTADO SEGURO ACTIVADO")
-        self.solenoide_abrir(False)
         self.tono_buzzer("error")
         self.mostrar_mensaje("ESTADO SEGURO", "Sistema detenido")

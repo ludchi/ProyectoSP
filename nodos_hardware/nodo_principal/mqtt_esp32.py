@@ -39,13 +39,7 @@ def on_message(topic, msg):
         actuadores.mostrar_mensaje(data.get("linea1", ""), data.get("linea2", ""))
     elif topic == f"{TOPIC_BASE}/cmd/buzzer/{CLIENT_ID}":
         actuadores.tono_buzzer(data.get("tipo", "ok"))
-    elif topic == f"{TOPIC_BASE}/cmd/solenoide/{CLIENT_ID}":
-        abrir = data.get("abrir", False)
-        tiempo_ms = data.get("tiempo_ms", 1000)
-        actuadores.solenoide_abrir(abrir)
-        if abrir:
-            time.sleep(tiempo_ms / 1000.0)
-            actuadores.solenoide_abrir(False)
+
     elif topic == f"{TOPIC_BASE}/cmd/safe/{CLIENT_ID}":
         if data.get("activar", False):
             actuadores.estado_seguro()
@@ -56,7 +50,7 @@ def main():
     client.set_callback(on_message)
     client.connect()
     
-    for topic in ["oled", "buzzer", "solenoide", "safe"]:
+    for topic in ["oled", "buzzer", "safe"]:
         client.subscribe(f"{TOPIC_BASE}/cmd/{topic}/{CLIENT_ID}")
     
     print("Conectado a broker MQTT, esperando comandos...")
@@ -67,7 +61,7 @@ def main():
             
             publicar_json(client, f"{TOPIC_BASE}/sensor/resumen/{CLIENT_ID}", datos)
             publicar_json(client, f"{TOPIC_BASE}/sensor/rfid/{CLIENT_ID}", {"uid": datos["rfid_uid"], "presente": bool(datos["rfid_uid"])})
-            publicar_json(client, f"{TOPIC_BASE}/sensor/ultrasonido/{CLIENT_ID}", {"distancia_cm": datos["distancia_cm"]})
+
             publicar_json(client, f"{TOPIC_BASE}/sensor/pulso/{CLIENT_ID}", datos["pulso_hrv"])
             
             ultimo_msg = actuadores.mensajes_pantalla[-1] if actuadores.mensajes_pantalla else ""
