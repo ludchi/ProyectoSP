@@ -29,9 +29,8 @@ Esta tabla describe la conexión **cable por cable** y especifica exactamente d�
 | | MOSI | ESP32 `GPIO 19` | Ninguno | Cable directo (Master Out Slave In). |
 | | MISO | ESP32 `GPIO 16` | Ninguno | Cable directo (Master In Slave Out). |
 | | RST | Bus 3.3V (Pin `3V3`) | Ninguno | Cable directo a 3.3V. Ya no lo controlamos por código para mayor estabilidad. |
-
-| **Buzzer Activo** | VCC (+) / Pata larga| ESP32 `GPIO 27` | **Resistor 220Ω - 330Ω** | Conectar en serie el resistor entre el GPIO 27 y la pata positiva del buzzer para limitar la corriente (~10mA). |
-| | GND (-) / Pata corta| Bus GND Común | Ninguno | Cierra circuito a tierra. |
+| **Buzzer Activo** | VCC (+) / Pata larga | ESP32 `GPIO 27` | **Resistor 220Ω - 330Ω** | Conectar en serie el resistor entre el GPIO 27 y la pata positiva del buzzer para limitar la corriente (~10mA). |
+| | GND (-) / Pata corta | Bus GND Común | Ninguno | Cierra circuito a tierra. |
 | **ESP32-CAM (Cámara)** | 5V / VCC | Bus 5V (Pin `VIN` o Fuente 5V Ext.) | **Fuente de al menos 1A-2A** | Módulo independiente (no se conecta a los GPIO de la ESP32 principal). Requiere muy buena alimentación de 5V para que el Wi-Fi y la cámara no se reinicien. |
 | | GND | Bus GND Común | Ninguno | Cierra circuito a tierra. |
 
@@ -49,7 +48,6 @@ Una vez que tengas MicroPython, debes guardar **obligatoriamente** los siguiente
    - `ssd1306.py`: Para controlar la pantalla OLED.
    - `mfrc522.py`: Para leer las tarjetas RFID.
    - `max30102.py`: Para leer el pulso cardíaco.
-   - `hcsr04.py`: Para el ultrasonido.
 3. **`main.py`**: Este será tu archivo principal. Debe contener la lógica real de tu `mqtt_esp32.py`, pero importando y usando las librerías mencionadas arriba en lugar de las clases "Dummy" y falsas.
 
 ---
