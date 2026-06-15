@@ -6,7 +6,7 @@ import paho.mqtt.client as mqtt
 from ai_processor import FatigueDetector
 import cv2
 
-BROKER = "192.168.1.168"
+BROKER = "127.0.0.1"
 CLIENT_ID = "server_python_01"
 TOPIC_BASE = "asistlab"
 

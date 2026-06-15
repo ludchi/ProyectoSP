@@ -8,7 +8,7 @@
 // ===========================
 const char* ssid = "INFINITUM90AF";
 const char* password = "ZacnYPtK3g";
-const char* mqtt_server = "192.168.1.168"; // IP de tu computadora (Mosquitto)
+const char* mqtt_server = "192.168.1.186"; // IP de tu computadora (Mosquitto)
 
 const char* mqtt_topic_cam = "asistlab/sensor/camara/cam_01";
 const char* client_id = "esp32_cam_01";

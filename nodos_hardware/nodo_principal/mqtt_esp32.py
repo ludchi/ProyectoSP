@@ -14,7 +14,7 @@ except ImportError:
     print("ERROR: Falta el archivo umqttsimple.py en la ESP32")
 
 
-BROKER = "192.168.1.168"
+BROKER = "192.168.1.186"
 CLIENT_ID = "esp32_01"
 TOPIC_BASE = "asistlab"
 
@@ -74,7 +74,7 @@ def main():
             publicar_json(client, f"{TOPIC_BASE}/actuador/oled/{CLIENT_ID}", {"ultimo_mensaje": ultimo_msg})
             
             client.check_msg()
-            time.sleep(2)
+            time.sleep_ms(500)  # Polling más rápido para que el RFID detecte tarjetas
     except KeyboardInterrupt:
         print("\nDeteniendo MQTT en ESP32...")
         actuadores.estado_seguro()
