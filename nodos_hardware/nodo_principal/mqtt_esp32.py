@@ -1,6 +1,6 @@
 """
-OBJETIVO: Implementar la lógica MQTT en la ESP32 para publicar telemetría de TODOS los sensores y suscribirse a comandos de TODOS los actuadores usando la HAL.
-INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA ANGEL JOSUE
+OBJETIVO: Implementar la lógica MQTT en la ESP32 para publicar telemetría de sensores y suscribirse a comandos OLED.
+INTEGRANTES: CASTRO LUNA CESAR ARMANDO, ESPINOZA BRAVO LUDWIG, LOZANO CARDONA ANGEL JOSUE
 PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 """
 
@@ -14,7 +14,7 @@ except ImportError:
     print("ERROR: Falta el archivo umqttsimple.py en la ESP32")
 
 
-BROKER = "192.168.1.186"
+BROKER = "172.20.10.4"
 CLIENT_ID = "esp32_01"
 TOPIC_BASE = "asistlab"
 
@@ -37,12 +37,17 @@ def on_message(topic, msg):
     
     if topic == f"{TOPIC_BASE}/cmd/oled/{CLIENT_ID}":
         actuadores.mostrar_mensaje(data.get("linea1", ""), data.get("linea2", ""))
-    elif topic == f"{TOPIC_BASE}/cmd/buzzer/{CLIENT_ID}":
-        actuadores.tono_buzzer(data.get("tipo", "ok"))
-
-    elif topic == f"{TOPIC_BASE}/cmd/safe/{CLIENT_ID}":
-        if data.get("activar", False):
-            actuadores.estado_seguro()
+    
+    elif topic == f"{TOPIC_BASE}/cmd/actuadores/{CLIENT_ID}":
+        accion = data.get("accion", "")
+        if accion == "registro_ok":
+            # LED Verde + Buzzer: Registro exitoso sin fatiga
+            actuadores.confirmar_registro()
+        elif accion == "registro_fatiga":
+            # LED Rojo + Buzzer: Registro exitoso PERO con fatiga detectada
+            actuadores.alerta_fatiga()
+        elif accion == "apagar":
+            actuadores.apagar_todo()
 
 def main():
     print("=== SISTEMA ASISTENCIAS Y DESGASTE LABORAL (ESP32 MQTT) ===")
@@ -50,25 +55,66 @@ def main():
     client.set_callback(on_message)
     client.connect()
     
-    for topic in ["oled", "buzzer", "safe"]:
-        client.subscribe(f"{TOPIC_BASE}/cmd/{topic}/{CLIENT_ID}")
+    # Suscribirse a comandos OLED y nuevos actuadores (LEDs + Buzzer)
+    client.subscribe(f"{TOPIC_BASE}/cmd/oled/{CLIENT_ID}")
+    client.subscribe(f"{TOPIC_BASE}/cmd/actuadores/{CLIENT_ID}")
     
     print("Conectado a broker MQTT, esperando comandos...")
     
     try:
         while True:
-            datos = sensores.obtener_resumen_sensores()
-            
-            publicar_json(client, f"{TOPIC_BASE}/sensor/resumen/{CLIENT_ID}", datos)
-            publicar_json(client, f"{TOPIC_BASE}/sensor/rfid/{CLIENT_ID}", {"uid": datos["rfid_uid"], "presente": bool(datos["rfid_uid"])})
-
-            publicar_json(client, f"{TOPIC_BASE}/sensor/pulso/{CLIENT_ID}", datos["pulso_hrv"])
-            
-            ultimo_msg = actuadores.mensajes_pantalla[-1] if actuadores.mensajes_pantalla else ""
-            publicar_json(client, f"{TOPIC_BASE}/actuador/oled/{CLIENT_ID}", {"ultimo_mensaje": ultimo_msg})
-            
             client.check_msg()
-            time.sleep_ms(500)  # Polling más rápido para que el RFID detecte tarjetas
+            
+            # 1. Esperar tarjeta RFID
+            uid = sensores.leer_rfid()
+            
+            if uid:
+                print(f"[RFID] Tarjeta detectada: {uid}. Iniciando medición de pulso...")
+                publicar_json(client, f"{TOPIC_BASE}/sensor/rfid/{CLIENT_ID}", {"uid": uid, "presente": True})
+                
+                # Indicar al usuario que coloque el dedo
+                actuadores.mostrar_mensaje("Pon tu dedo", "Calculando...")
+                
+                lecturas_validas = []
+                inicio = time.time()
+                
+                # 2. Bucle para obtener 10 lecturas válidas de BPM
+                while len(lecturas_validas) < 10:
+                    client.check_msg()
+                    pulso_datos = sensores.leer_pulso_hrv()
+                    bpm = pulso_datos.get("pulso_bpm", 0)
+                    
+                    if bpm > 40:
+                        lecturas_validas.append(bpm)
+                        # Mostrar progreso en la OLED
+                        actuadores.mostrar_mensaje("Midiendo...", f"Progreso: {len(lecturas_validas)}/10")
+                        
+                    # Si pasan 30 segundos sin completar, abortar para no bloquear el sistema
+                    if time.time() - inicio > 30:
+                        print("[ALERTA] Timeout esperando lecturas de pulso.")
+                        break
+                        
+                    time.sleep_ms(300)
+                
+                # 3. Si se consiguieron las lecturas, calcular promedio y enviar al servidor
+                if len(lecturas_validas) >= 10:
+                    promedio_bpm = sum(lecturas_validas) // len(lecturas_validas)
+                    print(f"[INFO] Promedio calculado: {promedio_bpm} BPM. Enviando resumen...")
+                    
+                    datos = {
+                        "rfid_uid": uid,
+                        "pulso_hrv": {"pulso_bpm": promedio_bpm, "hrv_ms": 0}
+                    }
+                    publicar_json(client, f"{TOPIC_BASE}/sensor/resumen/{CLIENT_ID}", datos)
+                    actuadores.mostrar_mensaje("Enviando...", f"{promedio_bpm} BPM")
+                else:
+                    actuadores.mostrar_mensaje("Error", "Pulso no detectado")
+                
+                # Pausa para evitar lecturas dobles instantáneas de la misma tarjeta
+                time.sleep(2)
+            else:
+                time.sleep_ms(200) # Polling rápido para RFID
+                
     except KeyboardInterrupt:
         print("\nDeteniendo MQTT en ESP32...")
         actuadores.estado_seguro()
@@ -76,3 +122,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

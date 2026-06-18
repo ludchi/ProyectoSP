@@ -1,6 +1,6 @@
 """
 OBJETIVO: Integración de IA para Detección de Fatiga (Desgaste Laboral)
-INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA ANGEL JOSUE
+INTEGRANTES: CASTRO LUNA CESAR ARMANDO, ESPINOZA BRAVO LUDWIG, LOZANO CARDONA ANGEL JOSUE
 PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 
 PREDICCIÓN DEL MODELO: Clasificación de estado de vigilia vs fatiga (ojos cerrados) mediante análisis de landmarks faciales.
@@ -71,7 +71,7 @@ class FatigueDetector:
         detection_result = self.detector.detect(mp_image)
         
         if not detection_result.face_landmarks:
-            return False, 0.0, image_np # No se detectó rostro
+            return False, 0.0, image_np, False # No se detectó rostro
             
         landmarks = detection_result.face_landmarks[0]
         
@@ -92,7 +92,7 @@ class FatigueDetector:
         if is_fatigued:
             cv2.putText(image_np, "ALERTA: FATIGA", (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             
-        return is_fatigued, avg_ear, image_np
+        return is_fatigued, avg_ear, image_np, True
 
     def process_base64_image(self, b64_string):
         """
@@ -107,9 +107,9 @@ class FatigueDetector:
             image_np = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             
             if image_np is None:
-                return False, 0.0, None
+                return False, 0.0, None, False
                 
             return self.process_image(image_np)
         except Exception as e:
             print(f"[AI] Error decodificando imagen: {e}")
-            return False, 0.0, None
+            return False, 0.0, None, False

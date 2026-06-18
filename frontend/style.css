@@ -1,6 +1,6 @@
 /*
 OBJETIVO: Gestión de Firebase y Dashboard de usuario.
-INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA ANGEL JOSUE
+INTEGRANTES: CASTRO LUNA CESAR ARMANDO, ESPINOZA BRAVO LUDWIG, LOZANO CARDONA ANGEL JOSUE
 PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 */
 
@@ -13,6 +13,7 @@ PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
     --accent-purple: #8b5cf6;
     --accent-red: #ef4444;
     --accent-green: #10b981;
+    --accent-yellow: #f59e0b;
     --border-color: #334155;
 }
 
@@ -187,75 +188,132 @@ body {
     font-weight: 700;
 }
 
-/* Control Panel */
-.control-panel {
+/* Camera Panel */
+.camera-panel {
     grid-column: span 12;
 }
 @media (min-width: 1024px) {
-    .control-panel { grid-column: span 4; }
+    .camera-panel { grid-column: span 4; }
 }
 
-.controls-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
+.camera-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
 }
 
-.control-item {
+.camera-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.camera-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    padding-bottom: 1.25rem;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.6);
+    color: var(--text-secondary);
+    gap: 0.5rem;
+    transition: opacity 0.3s ease;
+}
+
+.camera-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.camera-overlay i {
+    font-size: 3rem;
+    opacity: 0.4;
+}
+
+.camera-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+}
+
+.camera-status {
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.camera-status.online {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--accent-green);
+}
+
+/* Asistencias Table */
+.asistencias-panel {
+    grid-column: span 12;
+}
+@media (min-width: 1024px) {
+    .asistencias-panel { grid-column: span 8; }
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.asistencias-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.asistencias-table th, .asistencias-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
     border-bottom: 1px solid var(--border-color);
 }
-.control-item:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
 
-.control-info h3 {
-    font-size: 1rem;
-    font-weight: 500;
-}
-
-.control-info p {
-    font-size: 0.875rem;
+.asistencias-table th {
     color: var(--text-secondary);
-}
-
-.btn {
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    border: none;
     font-weight: 600;
-    font-family: inherit;
-    font-size: 0.875rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    transition: all 0.2s;
+    font-size: 0.85rem;
+    text-transform: uppercase;
 }
 
-.btn-primary {
-    background-color: var(--accent-blue);
-    color: white;
+.asistencias-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.02);
 }
-.btn-primary:hover { background-color: #2563eb; }
 
-.btn-danger {
-    background-color: transparent;
-    color: var(--accent-red);
-    border: 1px solid var(--accent-red);
-}
-.btn-danger:hover {
-    background-color: rgba(239, 68, 68, 0.1);
+.tipo-entrada { color: var(--accent-green); font-weight: 600; }
+.tipo-salida { color: var(--accent-blue); font-weight: 600; }
+
+.estres-bajo { color: var(--accent-green); font-weight: 600; }
+.estres-medio { color: var(--accent-yellow); font-weight: 600; }
+.estres-alto { color: var(--accent-red); font-weight: 600; animation: pulseText 1.5s infinite; }
+
+.text-center { text-align: center !important; color: var(--text-secondary); }
+
+@keyframes pulseText {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
 }
 
 /* Alerts Panel */
 .alerts-panel {
     grid-column: span 12;
+}
+@media (min-width: 1024px) {
+    .alerts-panel { grid-column: span 4; }
 }
 
 .alerts-list {
@@ -263,7 +321,13 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    max-height: 300px;
+    overflow-y: auto;
 }
+
+.alerts-list::-webkit-scrollbar { width: 6px; }
+.alerts-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
+.alerts-list::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
 
 .alert-item {
     background: rgba(15, 23, 42, 0.5);
@@ -276,7 +340,7 @@ body {
 }
 
 .alert-item.info { border-left-color: var(--accent-blue); }
-.alert-item.warning { border-left-color: #f59e0b; }
+.alert-item.warning { border-left-color: var(--accent-yellow); }
 .alert-item.danger { border-left-color: var(--accent-red); }
 
 .alert-content strong {

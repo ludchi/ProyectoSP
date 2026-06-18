@@ -1,11 +1,11 @@
 """
-OBJETIVO: Biblioteca HAL que abstrae RFID, pulso HRV, ultrasonido, OLED, buzzer y solenoide para control de asistencias con medición de estrés laboral.
-INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA ANGEL JOSUE
+OBJETIVO: Biblioteca HAL que abstrae RFID, pulso HRV y OLED para control de asistencias con medición de estrés laboral.
+INTEGRANTES: CASTRO LUNA CESAR ARMANDO, ESPINOZA BRAVO LUDWIG, LOZANO CARDONA ANGEL JOSUE
 PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 """
 
 import time
-from machine import Pin, I2C, SPI, PWM
+from machine import Pin, I2C, SPI
 
 # Intentar importar librerías. Si fallan, se usarán simulaciones como respaldo.
 try:
@@ -13,8 +13,6 @@ try:
     HAS_OLED = True
 except ImportError:
     HAS_OLED = False
-
-
 
 try:
     from mfrc522 import MFRC522
@@ -93,7 +91,7 @@ class CajaSensores:
     def __init__(self):
         self.uid_actual = ""
         self.pulsos_historial = [72, 74, 70, 75]
-            
+        
         # --- Configuración I2C (Compartido OLED y MAX30102) ---
         self.i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=400000)
         
@@ -117,7 +115,7 @@ class CajaSensores:
             self.sensor_pulso = None
             print("[ADVERTENCIA] No se encontró max30102.py, sensor de pulso desactivado.")
 
-        # --- Configuración SPI y RC522 (SEGUNDO, después de I2C) ---
+        # --- Configuración SPI y RC522 ---
         if HAS_RFID:
             try:
                 sck_pin = Pin(18, Pin.OUT)
@@ -165,8 +163,6 @@ class CajaSensores:
             self.uid_actual = ""
             return self.uid_actual
     
-
-    
     def leer_pulso_hrv(self):
         if self.sensor_pulso:
             try:
@@ -178,9 +174,10 @@ class CajaSensores:
                 
                 # Tomar la muestra más reciente para revisar el umbral de presencia de dedo
                 ultimo_red, ultimo_ir = muestras[-1]
+                print(f"[DEBUG MAX30102] RAW_RED: {ultimo_red} | RAW_IR: {ultimo_ir}")
                 
                 # Umbral de detección ajustado para LED a 7mA:
-                if 400 < ultimo_ir < 120000:
+                if 100 < ultimo_ir < 250000:
                     # Hay dedo, agregamos las muestras al historial para análisis matemático
                     self.detector_pulso.procesar_muestras(muestras)
                     bpm_real = self.detector_pulso.calcular_bpm()
@@ -193,7 +190,14 @@ class CajaSensores:
                 # Retornamos el error en el JSON para verlo en el servidor
                 return {"pulso_bpm": 0, "hrv_ms": 0, "error_sensor": str(e)}
         else:
-            return {"pulso_bpm": 0, "hrv_ms": 0}
+            # SIMULACIÓN (Ya que no hay sensor físico conectado)
+            # Si hay una tarjeta presente, simulamos un pulso aleatorio
+            if self.uid_actual != "":
+                import random
+                bpm_simulado = random.randint(65, 95)
+                return {"pulso_bpm": bpm_simulado, "hrv_ms": 0, "simulado": True}
+            else:
+                return {"pulso_bpm": 0, "hrv_ms": 0}
     
     def obtener_resumen_sensores(self):
         return {
@@ -204,11 +208,6 @@ class CajaSensores:
 class CajaActuadores:
     def __init__(self):
         self.mensajes_pantalla = []
-        
-
-        
-        # --- Configuración Buzzer ---
-        self.pin_buzzer = PWM(Pin(27), freq=500, duty=0)
         
         # --- Configuración OLED ---
         if HAS_OLED:
@@ -225,7 +224,27 @@ class CajaActuadores:
             self.oled = None
             print("[ADVERTENCIA] No se encontró ssd1306.py, usando simulación para OLED.")
 
-        
+        # --- Configuración LEDs ---
+        try:
+            self.led_rojo = Pin(2, Pin.OUT)   # GPIO 2 - LED Rojo (Fatiga/Alerta)
+            self.led_verde = Pin(4, Pin.OUT)  # GPIO 4 - LED Verde (Registro OK)
+            self.led_rojo.off()
+            self.led_verde.off()
+            print("[INFO] LEDs inicializados: Rojo (GPIO 2), Verde (GPIO 4)")
+        except Exception as e:
+            print(f"[ERROR] Falló inicialización LEDs: {e}")
+            self.led_rojo = None
+            self.led_verde = None
+
+        # --- Configuración Buzzer ---
+        try:
+            self.buzzer = Pin(15, Pin.OUT)    # GPIO 15 - Buzzer Pasivo
+            self.buzzer.off()
+            print("[INFO] Buzzer inicializado (GPIO 15)")
+        except Exception as e:
+            print(f"[ERROR] Falló inicialización Buzzer: {e}")
+            self.buzzer = None
+
     def mostrar_mensaje(self, linea1, linea2=""):
         if self.oled:
             self.oled.fill(0)
@@ -239,21 +258,55 @@ class CajaActuadores:
                 self.mensajes_pantalla.pop(0)
             print(f"[OLED SIMULADO] {mensaje}")
     
-    def tono_buzzer(self, tipo):
-        tonos = {"ok": 500, "error": 200, "advertencia": 1000}
-        duracion_ms = 200 if tipo == "ok" else 800
-        freq = tonos.get(tipo, 500)
-        
-        self.pin_buzzer.freq(freq)
-        self.pin_buzzer.duty(512) # 50% duty cycle
-        time.sleep_ms(duracion_ms)
-        self.pin_buzzer.duty(0) # Apagar
-        
-        print(f"[BUZZER] Tono {freq}Hz x {duracion_ms}ms")
+    def alerta_fatiga(self):
+        """Actuador: LED Rojo + Buzzer largo indican fatiga en el momento del registro."""
+        if self.led_rojo:
+            print("[ACTUADOR] 🔴 LED ROJO: Registro con fatiga")
+            self.led_rojo.on()
+        if self.buzzer:
+            print("[ACTUADOR] 🔊 BUZZER: Alerta de fatiga (tono largo)")
+            # 3 beeps largos de alerta (tono más grave ~500 Hz)
+            for _ in range(3):
+                for _ in range(50):
+                    self.buzzer.on()
+                    time.sleep_us(1000)  # ~500 Hz (más grave que el normal)
+                    self.buzzer.off()
+                    time.sleep_us(1000)
+                time.sleep_ms(200)
+        # Mantener LED rojo 3 segundos y luego apagar
+        time.sleep(3)
+        if self.led_rojo:
+            self.led_rojo.off()
     
+    def confirmar_registro(self):
+        """Actuador: LED Verde + Buzzer confirman un registro exitoso (entrada o salida)."""
+        if self.led_verde:
+            print("[ACTUADOR] 🟢 LED VERDE: Registro confirmado")
+            self.led_verde.on()
+        if self.buzzer:
+            print("[ACTUADOR] 🔊 BUZZER: Beep de confirmación")
+            # Generar un tono corto con el buzzer pasivo
+            for _ in range(80):
+                self.buzzer.on()
+                time.sleep_us(500)  # ~1000 Hz
+                self.buzzer.off()
+                time.sleep_us(500)
+        # Mantener LED verde 2 segundos y luego apagar
+        time.sleep(2)
+        if self.led_verde:
+            self.led_verde.off()
+    
+    def apagar_todo(self):
+        """Apaga todos los actuadores de señalización."""
+        if self.led_rojo:
+            self.led_rojo.off()
+        if self.led_verde:
+            self.led_verde.off()
+        if self.buzzer:
+            self.buzzer.off()
 
-    
     def estado_seguro(self):
         print("[EMERGENCIA] ESTADO SEGURO ACTIVADO")
-        self.tono_buzzer("error")
+        self.apagar_todo()
         self.mostrar_mensaje("ESTADO SEGURO", "Sistema detenido")
+

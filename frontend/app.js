@@ -1,11 +1,11 @@
 /*
 OBJETIVO: Gestión de Firebase y Dashboard de usuario.
-INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA ANGEL JOSUE
+INTEGRANTES: CASTRO LUNA CESAR ARMANDO, ESPINOZA BRAVO LUDWIG, LOZANO CARDONA ANGEL JOSUE
 PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getFirestore, collection, doc, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -22,23 +22,27 @@ const firebaseConfig = {
 const statusDot = document.getElementById('system-status-dot');
 const statusText = document.getElementById('system-status-text');
 const valRfid = document.getElementById('val-rfid');
-const valDistancia = document.getElementById('val-distancia');
 const valPulso = document.getElementById('val-pulso');
 const alertsList = document.getElementById('alerts-list');
-const btnAbrirPuerta = document.getElementById('btn-abrir-puerta');
-const btnActivarBuzzer = document.getElementById('btn-activar-buzzer');
+const tablaAsistencias = document.getElementById('tabla-asistencias');
+const cameraFeed = document.getElementById('camera-feed');
+const cameraOverlay = document.getElementById('camera-overlay');
+const cameraStatus = document.getElementById('camera-status');
 
+const CAMERA_URL = "http://localhost:8089/camara";
 let db;
+let cameraInterval;
 
 try {
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     setOnlineStatus(true);
     initListeners();
+    iniciarCamara();
 } catch (error) {
     console.error("Error inicializando Firebase:", error);
     setOnlineStatus(false);
-    alertsList.innerHTML = `<li class="alert-empty" style="color: var(--accent-red)">Error de conexión: Revisa tus credenciales de Firebase en app.js</li>`;
+    alertsList.innerHTML = `<li class="alert-empty" style="color: var(--accent-red)">Error de conexión Firebase</li>`;
 }
 
 function setOnlineStatus(online) {
@@ -52,24 +56,96 @@ function setOnlineStatus(online) {
 }
 
 function initListeners() {
-    // 1. Escuchar última telemetría
-    const sensorDocRef = doc(db, 'estado_actual', 'sensores');
-    onSnapshot(sensorDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data.payload) {
-                valRfid.textContent = data.payload.rfid_uid || '---';
-                valDistancia.textContent = data.payload.distancia_cm || '0';
-                if (data.payload.pulso_hrv) {
-                    valPulso.textContent = data.payload.pulso_hrv.pulso_bpm || '0';
+    // 1. Escuchar última telemetría RFID / Pulso (Si envías esto desde ESP32 a la DB, asegúrate que se actualice "estado_actual/sensores")
+    // (Si usaste el nuevo mqtt_server.py esto ya no actualiza 'estado_actual'. Usaremos la info de "asistencias" y "alertas")
+    
+    // 2. Escuchar Tabla de Asistencias
+    // Aumentamos el límite para poder agrupar a todos los empleados
+    const asistenciasQuery = query(collection(db, "asistencias"), orderBy("timestamp", "desc"), limit(50));
+    onSnapshot(asistenciasQuery, (snapshot) => {
+        tablaAsistencias.innerHTML = '';
+        
+        if (snapshot.empty) {
+            tablaAsistencias.innerHTML = '<tr><td colspan="4" class="text-center">No hay asistencias registradas</td></tr>';
+            return;
+        }
+
+        // Agrupar por empleado
+        const empleados = {};
+
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            const uid = data.uid;
+            
+            if (!empleados[uid]) {
+                empleados[uid] = {
+                    nombre: data.nombre || 'Desconocido',
+                    entrada: null,
+                    salida: null,
+                    estres: null
+                };
+            }
+            
+            // Como viene ordenado descendente, el primero que encontramos es el más reciente
+            if (data.tipo === "entrada" && !empleados[uid].entrada) {
+                empleados[uid].entrada = {
+                    hora: data.timestamp ? data.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...',
+                    bpm: data.pulso_bpm || 0
+                };
+            } else if (data.tipo === "salida" && !empleados[uid].salida) {
+                empleados[uid].salida = {
+                    hora: data.timestamp ? data.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...',
+                    bpm: data.pulso_bpm || 0
+                };
+                // Si tiene datos de estrés en la salida, los guardamos
+                if (data.nivel_estres) {
+                    empleados[uid].estres = {
+                        nivel: data.nivel_estres,
+                        diff: data.diferencia_bpm || 0
+                    };
                 }
             }
+        });
+
+        // Actualizar tarjetas de sensores con el documento más reciente (sin importar de quién sea)
+        if (!snapshot.empty) {
+            const data = snapshot.docs[0].data();
+            if(data.uid) valRfid.textContent = data.uid;
+            if(data.pulso_bpm) valPulso.textContent = data.pulso_bpm;
         }
+
+        // Renderizar la tabla con los empleados agrupados
+        Object.values(empleados).forEach(emp => {
+            const fila = document.createElement('tr');
+            
+            const entradaHTML = emp.entrada 
+                ? `<span class="tipo-entrada"><i class="fa-solid fa-arrow-right-to-bracket"></i> ${emp.entrada.hora} (${emp.entrada.bpm} ❤)</span>` 
+                : `<span style="color: var(--text-secondary)">---</span>`;
+                
+            const salidaHTML = emp.salida
+                ? `<span class="tipo-salida"><i class="fa-solid fa-arrow-right-from-bracket"></i> ${emp.salida.hora} (${emp.salida.bpm} ❤)</span>`
+                : `<span style="color: var(--text-secondary)">---</span>`;
+                
+            let estresHTML = '<span style="color: var(--text-secondary)">—</span>';
+            if (emp.estres) {
+                const nivelClass = `estres-${emp.estres.nivel}`;
+                const signo = emp.estres.diff > 0 ? '+' : '';
+                estresHTML = `<span class="${nivelClass}">${emp.estres.nivel.toUpperCase()} (${signo}${emp.estres.diff} BPM)</span>`;
+            }
+            
+            fila.innerHTML = `
+                <td><strong>${emp.nombre}</strong></td>
+                <td>${entradaHTML}</td>
+                <td>${salidaHTML}</td>
+                <td>${estresHTML}</td>
+            `;
+            tablaAsistencias.appendChild(fila);
+        });
     }, (error) => {
-        console.error("Error escuchando sensores:", error);
+        console.error("Error escuchando asistencias:", error);
     });
 
-    // 2. Escuchar últimas 5 alertas
+    // 3. Escuchar Alertas IA
     const alertsQuery = query(collection(db, 'alertas'), orderBy('timestamp', 'desc'), limit(5));
     onSnapshot(alertsQuery, (querySnapshot) => {
         alertsList.innerHTML = '';
@@ -83,12 +159,15 @@ function initListeners() {
             const date = alert.timestamp ? alert.timestamp.toDate() : new Date();
             const timeStr = date.toLocaleTimeString();
 
+            // Usamos 'danger' para IA de fatiga
+            const levelClass = alert.nivel || 'danger';
+
             const li = document.createElement('li');
-            li.className = `alert-item ${alert.nivel || 'info'}`;
+            li.className = `alert-item ${levelClass}`;
             li.innerHTML = `
                 <div class="alert-content">
-                    <strong>${alert.mensaje || 'Alerta'}</strong>
-                    <span>RFID: ${alert.rfid_uid || 'N/A'}</span>
+                    <strong><i class="fa-solid fa-triangle-exclamation"></i> ${alert.mensaje || 'Alerta'}</strong>
+                    <span>EAR: ${alert.ear_value ? alert.ear_value.toFixed(3) : 'N/A'} - ${alert.dispositivo || 'Camara'}</span>
                 </div>
                 <div class="alert-time">${timeStr}</div>
             `;
@@ -99,44 +178,36 @@ function initListeners() {
     });
 }
 
-// 3. Enviar comandos remotos
-async function sendCommand(actuador, accion) {
-    if (!db) return alert("Firebase no está conectado.");
-
-    try {
-        await addDoc(collection(db, 'comandos_remotos'), {
-            actuador: actuador,
-            accion: accion,
-            procesado: false,
-            timestamp: serverTimestamp()
-        });
-        console.log(`Comando enviado: ${actuador} -> ${accion}`);
-    } catch (error) {
-        console.error("Error enviando comando:", error);
-        alert("Error al enviar el comando.");
-    }
+// 4. Refrescar Cámara desde Firebase (Solo cuando alguien se registra)
+function iniciarCamara() {
+    if (cameraInterval) clearInterval(cameraInterval);
+    
+    const camaraDoc = doc(db, "estado_actual", "camara");
+    onSnapshot(camaraDoc, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.imagen_b64) {
+                // Actualizar la imagen con la cadena Base64
+                cameraFeed.src = "data:image/jpeg;base64," + data.imagen_b64;
+                cameraOverlay.classList.add('hidden');
+                
+                // Formatear hora de la foto
+                let horaStr = "Reciente";
+                if (data.timestamp) {
+                    horaStr = data.timestamp.toDate().toLocaleTimeString();
+                }
+                
+                cameraStatus.innerHTML = `<i class="fa-solid fa-camera"></i> Último Registro: ${horaStr}`;
+                cameraStatus.className = 'camera-status online';
+                
+                // La foto se quedará permanentemente hasta que alguien más se registre
+            }
+        } else {
+            cameraOverlay.classList.remove('hidden');
+            cameraStatus.innerHTML = 'Sin señal';
+            cameraStatus.className = 'camera-status offline';
+        }
+    }, (error) => {
+        console.error("Error escuchando camara:", error);
+    });
 }
-
-btnAbrirPuerta.addEventListener('click', () => {
-    btnAbrirPuerta.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Abriendo...';
-    btnAbrirPuerta.disabled = true;
-
-    sendCommand('solenoide', 'abrir').finally(() => {
-        setTimeout(() => {
-            btnAbrirPuerta.innerHTML = '<i class="fa-solid fa-door-open"></i> Abrir';
-            btnAbrirPuerta.disabled = false;
-        }, 1000);
-    });
-});
-
-btnActivarBuzzer.addEventListener('click', () => {
-    btnActivarBuzzer.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Activando...';
-    btnActivarBuzzer.disabled = true;
-
-    sendCommand('buzzer', 'ok').finally(() => {
-        setTimeout(() => {
-            btnActivarBuzzer.innerHTML = '<i class="fa-solid fa-bell"></i> Activar';
-            btnActivarBuzzer.disabled = false;
-        }, 1000);
-    });
-});

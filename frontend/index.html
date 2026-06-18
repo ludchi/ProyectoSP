@@ -1,6 +1,6 @@
 <!--
 OBJETIVO: Gestión de Firebase y Dashboard de usuario.
-INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA ANGEL JOSUE
+INTEGRANTES: CASTRO LUNA CESAR ARMANDO, ESPINOZA BRAVO LUDWIG, LOZANO CARDONA ANGEL JOSUE
 PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 -->
 <!DOCTYPE html>
@@ -11,7 +11,7 @@ PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
     <title>AsistLab Dashboard</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -46,13 +46,6 @@ PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
                         </div>
                     </div>
                     <div class="sensor-card">
-                        <i class="fa-solid fa-ruler-combined sensor-icon purple"></i>
-                        <div class="sensor-info">
-                            <span class="sensor-label">Distancia (cm)</span>
-                            <span class="sensor-value" id="val-distancia">0</span>
-                        </div>
-                    </div>
-                    <div class="sensor-card">
                         <i class="fa-solid fa-heart-pulse sensor-icon red"></i>
                         <div class="sensor-info">
                             <span class="sensor-label">Pulso (BPM)</span>
@@ -62,42 +55,54 @@ PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
                 </div>
             </section>
 
-            <!-- Control Remoto -->
-            <section class="card control-panel">
+            <!-- Cámara en Vivo -->
+            <section class="card control-panel camera-panel">
                 <div class="card-header">
-                    <h2><i class="fa-solid fa-gamepad"></i> Control Remoto</h2>
+                    <h2><i class="fa-solid fa-video"></i> Cámara de Fatiga</h2>
                 </div>
-                <div class="card-content controls-wrapper">
-                    <div class="control-item">
-                        <div class="control-info">
-                            <h3>Solenoide (Puerta)</h3>
-                            <p>Abrir acceso temporalmente</p>
+                <div class="card-content camera-wrapper">
+                    <div class="camera-container">
+                        <img id="camera-feed" src="" alt="Esperando imagen...">
+                        <div id="camera-overlay" class="camera-overlay">
+                            <i class="fa-solid fa-video-slash"></i>
+                            <p>Esperando imagen del servidor...</p>
                         </div>
-                        <button class="btn btn-primary" id="btn-abrir-puerta">
-                            <i class="fa-solid fa-door-open"></i> Abrir
-                        </button>
                     </div>
-                    
-                    <div class="control-item">
-                        <div class="control-info">
-                            <h3>Buzzer de Alerta</h3>
-                            <p>Emitir sonido de advertencia</p>
-                        </div>
-                        <button class="btn btn-danger" id="btn-activar-buzzer">
-                            <i class="fa-solid fa-bell"></i> Activar
-                        </button>
+                    <div class="camera-info">
+                        <span id="camera-status" class="camera-status offline">Sin señal</span>
                     </div>
+                </div>
+            </section>
+
+            <!-- Registro de Asistencias -->
+            <section class="card asistencias-panel">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-clipboard-user"></i> Registro de Asistencias (En Vivo)</h2>
+                </div>
+                <div class="card-content table-responsive">
+                    <table class="asistencias-table">
+                        <thead>
+                            <tr>
+                                <th>Empleado</th>
+                                <th>Entrada</th>
+                                <th>Salida</th>
+                                <th>Estrés (Resultado)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-asistencias">
+                            <tr><td colspan="4" class="text-center">Cargando asistencias...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
             <!-- Historial de Alertas -->
             <section class="card alerts-panel">
                 <div class="card-header">
-                    <h2><i class="fa-solid fa-triangle-exclamation"></i> Últimas 5 Alertas</h2>
+                    <h2><i class="fa-solid fa-triangle-exclamation"></i> Últimas 5 Alertas (IA)</h2>
                 </div>
                 <div class="card-content">
                     <ul class="alerts-list" id="alerts-list">
-                        <!-- Las alertas se inyectarán aquí -->
                         <li class="alert-empty">Cargando alertas...</li>
                     </ul>
                 </div>
@@ -106,6 +111,6 @@ PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
     </div>
 
     <!-- Firebase SDK (Modular v10) -->
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=3"></script>
 </body>
 </html>

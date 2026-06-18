@@ -1,6 +1,6 @@
 """
 OBJETIVO: Gestión de Firebase y Dashboard de usuario.
-INTEGRANTES: CASTRO LUNA CESAR ARMANDO, EPINOZA BRAVO LUDWING, LOZANO CARDONA ANGEL JOSUE
+INTEGRANTES: CASTRO LUNA CESAR ARMANDO, ESPINOZA BRAVO LUDWIG, LOZANO CARDONA ANGEL JOSUE
 PROYECTO: Sistema de registro de Asistencias y Desgaste Laboral
 """
 
@@ -40,24 +40,17 @@ def init_firebase(cmd_callback=None):
 
 def log_evento(tipo, datos):
     """
-    Registra un evento en Firestore (ej: Telemetria, Alertas, Actuadores)
-    Privacidad: Se asume que 'datos' no contiene imágenes ni datos identificables sensibles directos no anonimizados.
+    Registra un evento en Firestore (ej: Alertas IA)
     """
     if not db:
         return # Modo simulado
     
     try:
-        # Aseguramos que haya un timestamp generado por el servidor
         datos['timestamp'] = firestore.SERVER_TIMESTAMP
         datos['tipo_evento'] = tipo
 
-        # Guardar en la colección de eventos generales
         db.collection('eventos').add(datos)
         print(f"[FIREBASE] Evento registrado en la nube: {tipo}")
-        
-        # Si es telemetría, actualizamos el estado actual
-        if tipo == "Telemetria":
-            db.collection('estado_actual').document('sensores').set(datos)
         
         # Si es alerta, se guarda en su colección específica para el dashboard
         if tipo == "Alerta_IA":
@@ -66,63 +59,129 @@ def log_evento(tipo, datos):
     except Exception as e:
         print(f"[FIREBASE] ERROR al registrar evento: {e}")
 
-def obtener_empleado(uid):
+def actualizar_camara_dashboard(base64_img):
+    """Sube la última foto al dashboard solo cuando hay una asistencia para ahorrar cuota."""
+    if not db:
+        return
+    try:
+        db.collection('estado_actual').document('camara').set({
+            "imagen_b64": base64_img,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
+    except Exception as e:
+        print(f"[FIREBASE] Error subiendo imagen: {e}")
+
+def registrar_asistencia(uid, bpm, tipo="entrada"):
     """
-    Busca un empleado en la colección 'empleados' mediante su UID de tarjeta RFID.
-    Retorna un diccionario con los datos del empleado si existe, o None si no.
+    Registra la asistencia de un empleado (entrada o salida).
+    En la salida calcula la diferencia de estrés comparando BPM entrada vs salida.
+    Retorna (éxito, nombre, datos_extra).
     """
     if not db:
-        return {"nombre": "Simulado"} # Modo simulado
+        # Modo simulado si no hay credenciales
+        return True, f"Empleado {uid}", {}
+        
     try:
+        # 1. Buscar al empleado en la colección
         doc_ref = db.collection('empleados').document(uid)
         doc = doc_ref.get()
+        
         if doc.exists:
-            return doc.to_dict()
-        return None
-    except Exception as e:
-        print(f"[FIREBASE] ERROR al buscar empleado: {e}")
-        return None
-
-def registrar_asistencia(uid, empleado_data, bpm):
-    """
-    Guarda el registro de entrada/salida en la colección 'asistencias'.
-    Calcula si hay estrés laboral basado en los BPM.
-    """
-    if not db:
-        print(f"[FIREBASE-SIMULADO] Asistencia registrada para {empleado_data.get('nombre', 'Desconocido')} con {bpm} BPM.")
-        return
-
-    try:
-        # Lógica básica de estrés: Si BPM es mayor a 100 en reposo, o menor a 50
-        estado_estres = "NORMAL"
-        if bpm > 100 or bpm < 50:
-            estado_estres = "ALERTA_ESTRES"
-
-        registro = {
+            data = doc.to_dict() or {}
+            print(f"[DEBUG FIREBASE] Documento {uid} encontrado. Datos: {data}")
+            
+            # Limpiar llaves por si en Firebase las escribiste con mayúsculas o espacios extra
+            data_limpia = {str(k).strip().lower(): v for k, v in data.items()}
+            
+            nombre = data_limpia.get('nombre') or data_limpia.get('empleados') or data_limpia.get('empleado') or f"Emp {uid}"
+            
+            if nombre == f"Emp {uid}":
+                print(f"[DEBUG FIREBASE] No se encontró el campo 'nombre' en el documento.")
+        else:
+            # Si no existe, crear un perfil temporal
+            nombre = f"Nuevo {uid[-4:]}"
+            doc_ref.set({
+                "nombre": nombre,
+                "rol": "Desconocido",
+                "creado_en": firestore.SERVER_TIMESTAMP
+            })
+            
+        # 2. Registrar la asistencia
+        asistencia_data = {
             "uid": uid,
-            "nombre": empleado_data.get('nombre', 'Desconocido'),
-            "puesto": empleado_data.get('puesto', 'Sin Asignar'),
+            "nombre": nombre,
+            "pulso_bpm": bpm,
+            "tipo": tipo,
             "timestamp": firestore.SERVER_TIMESTAMP,
-            "bpm_registrado": bpm,
-            "estado_estres": estado_estres
+            "tipo_evento": "Asistencia"
         }
         
-        db.collection('asistencias').add(registro)
-        print(f"[FIREBASE] ✅ Asistencia guardada: {registro['nombre']} ({bpm} BPM) -> {estado_estres}")
+        # Si es salida, buscar la entrada más reciente para calcular estrés
+        datos_extra = {}
+        if tipo == "salida":
+            try:
+                # pyrefly: ignore [missing-import]
+                from google.cloud.firestore_v1.base_query import FieldFilter
+                
+                # Solución sin Índice Compuesto: Pedimos las entradas del usuario y ordenamos en Python
+                entradas_ref = db.collection('asistencias')\
+                    .where(filter=FieldFilter('uid', '==', uid))\
+                    .where(filter=FieldFilter('tipo', '==', 'entrada'))\
+                    .get()
+                
+                # Filtrar aquellas que tengan timestamp y ordenarlas de más reciente a más antigua
+                entradas_validas = [doc for doc in entradas_ref if doc.to_dict().get('timestamp') is not None]
+                entradas_ordenadas = sorted(entradas_validas, key=lambda x: x.to_dict().get('timestamp'), reverse=True)
+                
+                # Tomar la más reciente
+                entradas = entradas_ordenadas[:1]
+                
+                for entrada_doc in entradas:
+                    bpm_entrada = entrada_doc.to_dict().get('pulso_bpm', 0)
+                    if bpm_entrada > 0:
+                        diferencia = bpm - bpm_entrada
+                        porcentaje = round((diferencia / bpm_entrada) * 100, 1)
+                        
+                        asistencia_data['bpm_entrada'] = bpm_entrada
+                        asistencia_data['bpm_salida'] = bpm
+                        asistencia_data['diferencia_bpm'] = diferencia
+                        asistencia_data['porcentaje_estres'] = porcentaje
+                        
+                        # Clasificar nivel de estrés
+                        if porcentaje > 15:
+                            nivel = "alto"
+                        elif porcentaje > 5:
+                            nivel = "medio"
+                        else:
+                            nivel = "bajo"
+                        asistencia_data['nivel_estres'] = nivel
+                        
+                        datos_extra = {
+                            'bpm_entrada': bpm_entrada,
+                            'diferencia': diferencia,
+                            'nivel': nivel
+                        }
+            except Exception as e:
+                print(f"[FIREBASE] No se pudo calcular estrés: {e}")
+        
+        db.collection('asistencias').add(asistencia_data)
+        emoji = "🟢" if tipo == "entrada" else "🔴"
+        print(f"[FIREBASE] {emoji} {tipo.upper()} registrada para {nombre} ({bpm} BPM)")
+        
+        return True, nombre, datos_extra
         
     except Exception as e:
         print(f"[FIREBASE] ERROR al registrar asistencia: {e}")
+        return False, "Error DB", {}
 
 def _start_command_listener():
     """
     Escucha cambios en la colección de comandos enviados desde el Dashboard.
-    Usa 'stream' (non-polling) para evitar latencia de la nube.
     """
     if not db:
         return
         
     try:
-        # Escuchamos los comandos remotos pendientes usando FieldFilter (sintaxis nueva)
         # pyrefly: ignore [missing-import]
         from google.cloud.firestore_v1.base_query import FieldFilter
         col_query = db.collection('comandos_remotos').where(filter=FieldFilter('procesado', '==', False))
@@ -134,14 +193,12 @@ def _start_command_listener():
                     cmd_id = change.document.id
                     
                     if on_command_callback:
-                        # Mandar el comando a mqtt_server.py
                         on_command_callback(cmd_doc)
                     
                     # Marcar como procesado
                     db.collection('comandos_remotos').document(cmd_id).update({'procesado': True})
                     print(f"[FIREBASE] Comando remoto {cmd_id} procesado.")
 
-        # Suscripción stream en tiempo real (guardamos la referencia global para evitar que se cierre)
         global cmd_watch
         cmd_watch = col_query.on_snapshot(on_snapshot)
         print("[FIREBASE] Listener de comandos remotos iniciado.")

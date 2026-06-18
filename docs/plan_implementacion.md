@@ -9,17 +9,17 @@ A continuación se detalla el plan de implementación de las diferentes fases t�
 
 ### 1.1 Hardware Abstraction Layer (HAL)
 Se diseñó el archivo `dispositivos.py` para abstraer el control de:
-- **Sensores:** Lector RFID (RC522), Sensor Ultrasónico (HC-SR04), y Sensor de Pulso (MAX30102).
-- **Actuadores:** Pantalla OLED SSD1306, Zumbador (Buzzer) y Cerradura (Relé/Solenoide).
+- **Sensores:** Lector RFID (RC522) y Sensor de Pulso (MAX30102).
+- **Actuadores:** Pantalla OLED SSD1306, LED Rojo (Alerta Fatiga), LED Verde (OK) y Buzzer Pasivo (Confirmación Sonora).
 
-Esta separación permite que el código principal (`mqtt_esp32.py` o `main.py`) llame a métodos limpios como `oled.mostrar_texto()` o `buzzer.emitir_alerta()` sin lidiar con los buses I2C, SPI o GPIO directamente.
+Esta separación permite que el código principal (`mqtt_esp32.py` o `main.py`) llame a métodos limpios como `actuadores.mostrar_mensaje()` o `actuadores.alerta_fatiga()` sin lidiar con los buses I2C, SPI o GPIO directamente.
 
 ### 1.2 Protocolo de Comunicación (MQTT)
 Se estandarizó una matriz jerárquica de tópicos para todo el proyecto:
 - **Telemetría (Lectura):** `asistlab/sensor/[TIPO]/[ID_DISPOSITIVO]` (ej. `asistlab/sensor/resumen/esp32_01`)
-- **Comandos (Escritura):** `asistlab/cmd/[ACTUADOR]/[ID_DISPOSITIVO]` (ej. `asistlab/cmd/oled/esp32_01`)
+- **Comandos (Escritura):** `asistlab/cmd/[TIPO]/[ID_DISPOSITIVO]` (ej. `asistlab/cmd/actuadores/esp32_01`)
 
-El servidor Python (`mqtt_server.py`) actúa como el cerebro del sistema. Escucha los tópicos de los sensores y, dependiendo de la lógica de negocio (ej. "Usuario reconocido y distancia < 25cm"), publica comandos de regreso a los actuadores correspondientes (abrir puerta, sonar alarma, mostrar mensaje).
+El servidor Python (`mqtt_server.py`) actúa como el cerebro del sistema. Escucha los tópicos de los sensores y, dependiendo de la lógica de negocio (ej. "Registro Exitoso" o "Fatiga Detectada"), publica comandos de regreso a los actuadores correspondientes (OLED, LEDs y Buzzer).
 
 ---
 
